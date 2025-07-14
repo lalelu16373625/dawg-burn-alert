@@ -6,6 +6,8 @@ from datetime import datetime
 from telegram import Bot
 from telegram.constants import ParseMode
 from flask import Flask
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- Einstellungen (hier änderst du deine Tokens & IDs) ---
 TELEGRAM_BOT_TOKEN = "8159479693:AAGpluZ2zix5GpzBZMUc2XriGd1TImfxLuk"
@@ -23,7 +25,7 @@ app = Flask(__name__)
 
 def fetch_burns():
     try:
-        response = requests.get(BURN_API_URL)
+        response = requests.get(BURN_API_URL, verify=False)
         if response.status_code == 200:
             data = response.json()
             return data.get("transfers", [])
