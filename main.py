@@ -1,11 +1,10 @@
 import requests
-import time
-import threading
+import asyncio
 import os
 from datetime import datetime
 from telegram import Bot, Update
 from telegram.constants import ParseMode
-from flask import Flask, request, abort
+from quart import Quart, request
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -21,7 +20,7 @@ seen_burn_ids = set()
 burn_count = 0  # Zähler für gesendete Burn-Alerts
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
-app = Flask(__name__)
+app = Quart(__name__)
 
 def escape_markdown(text: str) -> str:
     escape_chars = r'_*[]()~`>#+-=|{}.!'
@@ -71,7 +70,7 @@ def format_burn_message(burn, is_burn_event: bool):
         f"[View Transaction](https://explorer.pepu.io/tx/{tx_hash_escaped})"
     )
 
-def burn_alert_loop():
+async def burn_alert_loop():
     global seen_burn_ids, burn_count
     print("Burn Alert Loop gestartet.")
     while True:
@@ -94,7 +93,7 @@ def burn_alert_loop():
                 is_burn_event = (event_type == "token_burning")
                 msg = format_burn_message(burn, is_burn_event)
                 try:
-                    bot.send_animation(
+                    await bot.send_animation(
                         chat_id=TELEGRAM_CHAT_ID,
                         animation=BURN_GIF_URL,
                         caption=msg,
@@ -105,15 +104,16 @@ def burn_alert_loop():
                     print(f"Nachricht gesendet für Transaction {burn_id}")
                 except Exception as e:
                     print(f"Fehler beim Senden der Nachricht: {e}")
-        time.sleep(30)
+        await asyncio.sleep(30)
 
 @app.route("/")
-def home():
+async def home():
     return "Burn Alert Bot is running"
 
 @app.route("/webhook", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
+async def webhook():
+    data = await request.get_json()
+    update = Update.de_json(data, bot)
     message = update.message
 
     if not message or not message.text:
@@ -129,7 +129,7 @@ def webhook():
             f"Gesendete Burn Alerts: *{burn_count}*"
         )
         try:
-            bot.send_message(
+            await bot.send_message(
                 chat_id=chat_id,
                 text=status_msg,
                 parse_mode=ParseMode.MARKDOWN_V2,
@@ -143,9 +143,10 @@ def webhook():
     return "OK", 200
 
 if __name__ == "__main__":
-    # Starte burn_alert_loop als Thread
-    threading.Thread(target=burn_alert_loop, daemon=True).start()
+    loop = asyncio.get_event_loop()
+    # burn_alert_loop im Hintergrund starten
+    loop.create_task(burn_alert_loop())
 
-    # Starte Flask Webserver (für Webhook und Status)
+    # Quart starten
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
