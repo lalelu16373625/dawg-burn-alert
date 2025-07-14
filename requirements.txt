@@ -1,3 +1,5 @@
 python-telegram-bot==20.8
 requests
-flask
+quart
+python-telegram-bot==20.7
+requests
