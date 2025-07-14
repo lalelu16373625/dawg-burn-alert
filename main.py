@@ -125,9 +125,11 @@ async def webhook():
     if text == "/status":
         global burn_count
         status_msg = (
-            f"✅ *Bot läuft!*\n"
+            f"✅ *Bot läuft\\!*\\n"
             f"Gesendete Burn Alerts: *{burn_count}*"
         )
+        status_msg = escape_markdown(status_msg)
+
         try:
             await bot.send_message(
                 chat_id=chat_id,
@@ -138,15 +140,13 @@ async def webhook():
             print(f"Fehler beim Senden der Statusmeldung: {e}")
         return "OK", 200
 
-    # Weitere Commands kannst du hier hinzufügen
-
     return "OK", 200
 
-if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    # burn_alert_loop im Hintergrund starten
-    loop.create_task(burn_alert_loop())
 
-    # Quart starten
+if __name__ == "__main__":
+    # burn_alert_loop in den Event Loop einreihen
+    asyncio.ensure_future(burn_alert_loop())
+
+    # Quart ASGI Server starten
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
