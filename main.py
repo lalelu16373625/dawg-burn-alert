@@ -5,8 +5,7 @@ import os
 from datetime import datetime
 from telegram import Bot, Update
 from telegram.constants import ParseMode
-from telegram.ext import Updater, CommandHandler, CallbackContext
-from flask import Flask
+from flask import Flask, request, abort
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -108,52 +107,45 @@ def burn_alert_loop():
                     print(f"Fehler beim Senden der Nachricht: {e}")
         time.sleep(30)
 
-# Telegram Command Handler Funktionen
-def cmd_status(update: Update, context: CallbackContext):
-    global burn_count
-    text = (
-        f"✅ *Bot läuft!*\n"
-        f"Gesendete Burn Alerts: *{burn_count}*"
-    )
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=text,
-        parse_mode=ParseMode.MARKDOWN_V2,
-    )
-
-def cmd_burncount(update: Update, context: CallbackContext):
-    global burn_count
-    text = f"🔥 Total Burns gesendet: *{burn_count}*"
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=text,
-        parse_mode=ParseMode.MARKDOWN_V2,
-    )
-
 @app.route("/")
 def home():
     return "Burn Alert Bot is running"
 
-def main():
-    from telegram.ext import Updater, CommandHandler
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    message = update.message
 
-    updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
+    if not message or not message.text:
+        return "No message", 400
 
-    dispatcher.add_handler(CommandHandler("status", cmd_status))
-    dispatcher.add_handler(CommandHandler("burncount", cmd_burncount))
+    chat_id = message.chat.id
+    text = message.text.lower()
 
-    updater.start_polling()
-    print("Telegram Bot Polling gestartet.")
-    updater.idle()
+    if text == "/status":
+        global burn_count
+        status_msg = (
+            f"✅ *Bot läuft!*\n"
+            f"Gesendete Burn Alerts: *{burn_count}*"
+        )
+        try:
+            bot.send_message(
+                chat_id=chat_id,
+                text=status_msg,
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+        except Exception as e:
+            print(f"Fehler beim Senden der Statusmeldung: {e}")
+        return "OK", 200
+
+    # Weitere Commands kannst du hier hinzufügen
+
+    return "OK", 200
 
 if __name__ == "__main__":
     # Starte burn_alert_loop als Thread
-    t = threading.Thread(target=burn_alert_loop, daemon=True)
-    t.start()
+    threading.Thread(target=burn_alert_loop, daemon=True).start()
 
-    # Starte Flask in eigenem Thread (optional, nur wenn du HTTP Server brauchst)
-    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080))), daemon=True).start()
-
-    # Starte Telegram Polling im Hauptthread
-    main()
+    # Starte Flask Webserver (für Webhook und Status)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
