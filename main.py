@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from telegram import Bot, Update
 from telegram.constants import ParseMode
+from telegram.helpers import escape_markdown
 from quart import Quart, request
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -21,12 +22,6 @@ burn_count = 0  # Zähler für gesendete Burn-Alerts
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 app = Quart(__name__)
-
-def escape_markdown(text: str) -> str:
-    escape_chars = r'_*[]()~`>#+-=|{}.!'
-    for ch in escape_chars:
-        text = text.replace(ch, f"\\{ch}")
-    return text
 
 def fetch_burns():
     try:
@@ -58,7 +53,7 @@ def format_burn_message(burn, is_burn_event: bool):
     flames = "🔥" * flames_count if flames_count > 0 else ""
 
     header = "🔥 *New Burn Alert!* 🔥" if is_burn_event else "📤 *Transfer to Burn Address* 📤"
-    tx_hash_escaped = escape_markdown(tx_hash)
+    tx_hash_escaped = escape_markdown(tx_hash, version=2)
 
     return (
         f"{header}\n\n"
@@ -128,7 +123,7 @@ async def webhook():
             f"✅ *Bot läuft\\!*\\n"
             f"Gesendete Burn Alerts: *{burn_count}*"
         )
-        status_msg = escape_markdown(status_msg)
+        status_msg = escape_markdown(status_msg, version=2)
 
         try:
             await bot.send_message(
@@ -142,11 +137,11 @@ async def webhook():
 
     return "OK", 200
 
+@app.before_serving
+async def startup():
+    # Background-Task starten, wenn Quart bereit ist
+    app.add_background_task(burn_alert_loop)
 
 if __name__ == "__main__":
-    # burn_alert_loop in den Event Loop einreihen
-    asyncio.ensure_future(burn_alert_loop())
-
-    # Quart ASGI Server starten
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
