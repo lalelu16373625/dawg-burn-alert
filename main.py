@@ -3,7 +3,8 @@ import time
 import threading
 import os
 from datetime import datetime
-from telegram import Bot, ParseMode
+from telegram import Bot
+from telegram.constants import ParseMode
 from flask import Flask
 
 # --- Einstellungen (hier änderst du deine Tokens & IDs) ---
