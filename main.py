@@ -3,9 +3,10 @@ import time
 import threading
 import os
 from datetime import datetime
-from telegram import Bot
+from telegram import Bot, Update
 from telegram.constants import ParseMode
-from flask import Flask, request
+from telegram.ext import Updater, CommandHandler, CallbackContext
+from flask import Flask
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -18,7 +19,7 @@ BURN_GIF_URL = "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExeXVsZ3N5NXBkMX
 BURN_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 seen_burn_ids = set()
-burn_count = 0  # Neue Zählvariable für Burn Events
+burn_count = 0  # Zähler für gesendete Burn-Alerts
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 app = Flask(__name__)
@@ -107,34 +108,52 @@ def burn_alert_loop():
                     print(f"Fehler beim Senden der Nachricht: {e}")
         time.sleep(30)
 
+# Telegram Command Handler Funktionen
+def cmd_status(update: Update, context: CallbackContext):
+    global burn_count
+    text = (
+        f"✅ *Bot läuft!*\n"
+        f"Gesendete Burn Alerts: *{burn_count}*"
+    )
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=text,
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+
+def cmd_burncount(update: Update, context: CallbackContext):
+    global burn_count
+    text = f"🔥 Total Burns gesendet: *{burn_count}*"
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=text,
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+
 @app.route("/")
 def home():
     return "Burn Alert Bot is running"
 
-@app.route("/status", methods=["POST"])
-def status():
-    if request.method == "POST":
-        data = request.json or {}
-        message = data.get("message", {}).get("text", "")
-        if message.startswith("/status"):
-            try:
-                status_msg = (
-                    f"✅ *Bot läuft!*\n"
-                    f"Gesendete Burn Alerts: *{burn_count}*"
-                )
-                bot.send_message(
-                    chat_id=TELEGRAM_CHAT_ID,
-                    message_thread_id=TELEGRAM_TOPIC_ID,
-                    text=status_msg,
-                    parse_mode=ParseMode.MARKDOWN_V2
-                )
-            except Exception as e:
-                print(f"Fehler bei Statusmeldung: {e}")
-        return "OK"
-    return "Only POST allowed", 405
+def main():
+    from telegram.ext import Updater, CommandHandler
+
+    updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
+    dispatcher = updater.dispatcher
+
+    dispatcher.add_handler(CommandHandler("status", cmd_status))
+    dispatcher.add_handler(CommandHandler("burncount", cmd_burncount))
+
+    updater.start_polling()
+    print("Telegram Bot Polling gestartet.")
+    updater.idle()
 
 if __name__ == "__main__":
+    # Starte burn_alert_loop als Thread
     t = threading.Thread(target=burn_alert_loop, daemon=True)
     t.start()
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+
+    # Starte Flask in eigenem Thread (optional, nur wenn du HTTP Server brauchst)
+    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080))), daemon=True).start()
+
+    # Starte Telegram Polling im Hauptthread
+    main()
