@@ -105,16 +105,13 @@ async def burn_alert_loop():
 async def home():
     return "Burn Alert Bot is running"
 
+# ... dein bisheriger Code bleibt unverändert oben ...
+
 @app.route("/webhook", methods=["POST"])
 async def webhook():
     data = await request.get_json()
-
-    # Debug: Log das Update-Objekt mal komplett als JSON, um zu sehen, was ankommt
     print("Received update:", data)
-
     update = Update.de_json(data, bot)
-
-    # Nun unterscheiden, wo die Nachricht steckt:
     message = update.message or update.channel_post
 
     if not message or not message.text:
@@ -123,32 +120,63 @@ async def webhook():
     chat_id = message.chat.id
     text = message.text.lower()
 
+    # Prüfe, ob Nachricht in der Gruppe UND im BuyAlert-Thread ist
+    # Optional: private Nachrichten zulassen
+    in_buy_thread = (
+        chat_id == TELEGRAM_CHAT_ID and
+        getattr(message, "message_thread_id", None) == TELEGRAM_TOPIC_ID
+    )
+
     if text == "/status":
         global burn_count
-        status_msg = (
-            f"✅ *Bot läuft\\!*\\n"
-            f"Gesendete Burn Alerts: *{burn_count}*\\n"
-            f"Thread ID: `{getattr(message, 'message_thread_id', 'N/A')}`"
-        )
-        try:
-            await bot.send_message(
-                chat_id=chat_id,
-                text=status_msg,
-                parse_mode=ParseMode.MARKDOWN_V2,
+        if in_buy_thread or message.chat.type == "private":
+            status_msg = (
+                f"✅ *Bot läuft\\!*\\n"
+                f"Gesendete Burn Alerts: *{burn_count}*\\n"
+                f"Thread ID: `{getattr(message, 'message_thread_id', 'N/A')}`"
             )
-        except Exception as e:
-            print(f"Fehler beim Senden der Statusmeldung: {e}")
+            try:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    message_thread_id=TELEGRAM_TOPIC_ID if chat_id == TELEGRAM_CHAT_ID else None,
+                    text=status_msg,
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                )
+            except Exception as e:
+                print(f"Fehler beim Senden der Statusmeldung: {e}")
+        else:
+            print("Statusbefehl in falschem Thread oder Chat erhalten. Ignoriere.")
         return "OK", 200
 
     return "OK", 200
 
 
-
-@app.before_serving
-async def startup():
-    # Background-Task starten, wenn Quart bereit ist
-    app.add_background_task(burn_alert_loop)
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+async def burn_alert_loop():
+    global seen_burn_ids, burn_count
+    print("Burn Alert Loop gestartet.")
+    while True:
+        burns = fetch_burns()
+        for burn in burns:
+            # ... deine bisherigen Prüfungen ...
+            burn_id = burn["transaction_hash"]
+            if burn_id in seen_burn_ids:
+                continue
+            # ...
+            if event_type == "token_burning" or to_address == BURN_ADDRESS.lower():
+                seen_burn_ids.add(burn_id)
+                burn_count += 1
+                is_burn_event = (event_type == "token_burning")
+                msg = format_burn_message(burn, is_burn_event)
+                try:
+                    await bot.send_animation(
+                        chat_id=TELEGRAM_CHAT_ID,
+                        message_thread_id=TELEGRAM_TOPIC_ID,  # Hier den Thread angeben
+                        animation=BURN_GIF_URL,
+                        caption=msg,
+                        parse_mode=ParseMode.MARKDOWN_V2,
+                        disable_web_page_preview=False
+                    )
+                    print(f"Nachricht gesendet für Transaction {burn_id}")
+                except Exception as e:
+                    print(f"Fehler beim Senden der Nachricht: {e}")
+        await asyncio.sleep(30)
