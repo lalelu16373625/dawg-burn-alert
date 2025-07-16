@@ -24,6 +24,7 @@ burn_count = 0
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 app = Quart(__name__)
 
+# --- Daten abrufen ---
 def fetch_burns():
     try:
         response = requests.get(BURN_API_URL, verify=False)
@@ -36,6 +37,7 @@ def fetch_burns():
         print(f"Fehler bei API Abfrage: {e}")
         return []
 
+# --- Nachricht formatieren ---
 def format_burn_message(burn, is_burn_event: bool):
     raw_value = int(burn["value"])
     raw_supply = int(burn.get("current_supply", 0))
@@ -66,6 +68,7 @@ def format_burn_message(burn, is_burn_event: bool):
         f"[View Transaction](https://explorer.pepu.io/tx/{tx_hash_escaped})"
     )
 
+# --- Hintergrundloop zum Senden der Burn Alerts ---
 async def burn_alert_loop():
     global seen_burn_ids, burn_count
     print("Burn Alert Loop gestartet.")
@@ -102,59 +105,57 @@ async def burn_alert_loop():
                     print(f"Fehler beim Senden der Nachricht: {e}")
         await asyncio.sleep(30)
 
-@app.route("/")
-async def home():
-    return "Burn Alert Bot is running"
-
+# --- Webhook-Handler ---
 @app.route("/webhook", methods=["POST"])
 async def webhook():
     data = await request.get_json()
     print("Received update:", data)
-    update = Update.de_json(data, bot)
-    message = update.message or update.channel_post
 
-    if not message or not message.text:
-        return "No message", 400
+    try:
+        update = Update.de_json(data, bot)
+        message = update.message or update.channel_post
 
-    chat_id = message.chat.id
-    text = message.text.lower()
+        if not message or not message.text:
+            return "No message", 200
 
-    in_buy_thread = (
-        chat_id == TELEGRAM_CHAT_ID and
-        getattr(message, "message_thread_id", None) == TELEGRAM_TOPIC_ID
-    )
+        if message.chat.id != TELEGRAM_CHAT_ID:
+            return "Wrong chat", 200
 
-    if text == "/status":
-        global burn_count
-        if in_buy_thread or message.chat.type == "private":
-            status_msg = (
-                f"✅ *Bot läuft\\!*\\n"
-                f"Gesendete Burn Alerts: *{burn_count}*\\n"
-                f"Thread ID: `{getattr(message, 'message_thread_id', 'N/A')}`"
-            )
+        # Nur im gewünschten Thread zulassen
+        if getattr(message, "message_thread_id", None) != TELEGRAM_TOPIC_ID:
+            return "Wrong thread", 200
 
-            send_kwargs = {
-                "chat_id": chat_id,
-                "text": status_msg,
-                "parse_mode": ParseMode.MARKDOWN_V2,
-            }
-            if in_buy_thread:
-                send_kwargs["message_thread_id"] = TELEGRAM_TOPIC_ID
-
+        # /status Befehl behandeln
+        if message.text.strip().lower() == "/status":
+            global burn_count
             try:
-                await bot.send_message(**send_kwargs)
+                await bot.send_message(
+                    chat_id=TELEGRAM_CHAT_ID,
+                    message_thread_id=TELEGRAM_TOPIC_ID,
+                    text=(
+                        f"✅ *Bot läuft\\!*\\n"
+                        f"Gesendete Burn Alerts: *{burn_count}*"
+                    ),
+                    parse_mode=ParseMode.MARKDOWN_V2
+                )
             except Exception as e:
                 print(f"Fehler beim Senden der Statusmeldung: {e}")
-        else:
-            print("Statusbefehl in falschem Thread oder Chat erhalten. Ignoriere.")
         return "OK", 200
+    except Exception as e:
+        print(f"Webhook Fehler: {e}")
+        return "Error", 400
 
-    return "OK", 200
+# --- Root Route ---
+@app.route("/")
+async def home():
+    return "Burn Alert Bot is running"
 
+# --- Startup Task ---
 @app.before_serving
 async def startup():
     app.add_background_task(burn_alert_loop)
 
+# --- Start Server ---
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
