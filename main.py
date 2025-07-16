@@ -57,7 +57,7 @@ def format_burn_message(burn, is_burn_event: bool):
     header = "🔥 *New Burn Alert!* 🔥" if is_burn_event else "📤 *Transfer to Burn Address* 📤"
     tx_hash_escaped = escape_markdown(tx_hash, version=2)
 
-    return (
+    raw_msg = (
         f"{header}\n\n"
         f"Token: *DAWGZ*\n"
         f"Amount: *{amount} DAWGZ*\n"
@@ -66,6 +66,8 @@ def format_burn_message(burn, is_burn_event: bool):
         f"{flames}\n\n"
         f"[View Transaction](https://explorer.pepu.io/tx/{tx_hash_escaped})"
     )
+
+    return escape_markdown(raw_msg, version=2)
 
 async def burn_alert_loop():
     global seen_burn_ids, burn_count
@@ -139,7 +141,7 @@ async def webhook():
             print(f"Fehler beim Senden der Statusmeldung: {e}")
 
     elif text == "/testburn" and in_thread:
-        msg = (
+        raw_test_msg = (
             "*🔥 Test Burn Alert! 🔥*\n\n"
             "*Token:* DAWGZ\n"
             "*Amount:* 100000 DAWGZ\n"
@@ -148,12 +150,13 @@ async def webhook():
             f"{'🔥'*4}\n\n"
             "[View Transaction](https://explorer.pepu.io/tx/0xtesthash)"
         )
+        test_msg = escape_markdown(raw_test_msg, version=2)
         try:
             await bot.send_animation(
                 chat_id=chat_id,
                 message_thread_id=TELEGRAM_TOPIC_ID,
                 animation=BURN_GIF_URL,
-                caption=msg,
+                caption=test_msg,
                 parse_mode=ParseMode.MARKDOWN_V2,
             )
         except Exception as e:
