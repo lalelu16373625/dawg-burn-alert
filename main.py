@@ -111,36 +111,45 @@ async def home():
 @app.route("/webhook", methods=["POST"])
 async def webhook():
     data = await request.get_json()
+    print("📩 Webhook empfangen:")
+    print(data)
+
     update = Update.de_json(data, bot)
     message = update.message or update.channel_post
 
     if not message or not message.text:
+        print("⚠️ Keine gültige Nachricht empfangen.")
         return "No message", 400
 
     chat_id = message.chat.id
     text = message.text.strip().lower()
-    in_thread = (
+    message_thread_id = getattr(message, "message_thread_id", None)
+
+    in_group_thread = (
         chat_id == TELEGRAM_CHAT_ID and
-        getattr(message, "message_thread_id", None) == TELEGRAM_TOPIC_ID
+        message_thread_id == TELEGRAM_TOPIC_ID
     )
 
-    if text == "/status" and in_thread:
+    # ✅ Befehle auch in privater DM erlauben
+    is_private = message.chat.type == "private"
+
+    if text == "/status" and (in_group_thread or is_private):
         status_msg = (
             f"✅ *Bot läuft\\!*\\n"
             f"Gesendete Burn Alerts: *{burn_count}*\\n"
-            f"Thread ID: `{getattr(message, 'message_thread_id', 'N/A')}`"
+            f"Thread ID: `{message_thread_id}`"
         )
         try:
             await bot.send_message(
                 chat_id=chat_id,
-                message_thread_id=TELEGRAM_TOPIC_ID,
                 text=status_msg,
                 parse_mode=ParseMode.MARKDOWN_V2,
+                message_thread_id=message_thread_id if in_group_thread else None,
             )
         except Exception as e:
-            print(f"Fehler beim Senden der Statusmeldung: {e}")
+            print(f"❌ Fehler beim Senden der Statusmeldung: {e}")
 
-    elif text == "/testburn" and in_thread:
+    elif text == "/testburn" and (in_group_thread or is_private):
         raw_test_msg = (
             "*🔥 Test Burn Alert! 🔥*\n\n"
             "*Token:* DAWGZ\n"
@@ -154,15 +163,16 @@ async def webhook():
         try:
             await bot.send_animation(
                 chat_id=chat_id,
-                message_thread_id=TELEGRAM_TOPIC_ID,
                 animation=BURN_GIF_URL,
                 caption=test_msg,
                 parse_mode=ParseMode.MARKDOWN_V2,
+                message_thread_id=message_thread_id if in_group_thread else None,
             )
         except Exception as e:
-            print(f"Fehler beim Senden des Testburns: {e}")
+            print(f"❌ Fehler beim Senden des Testburns: {e}")
 
     return "OK", 200
+
 
 @app.before_serving
 async def startup():
