@@ -93,7 +93,7 @@ async def burn_alert_loop():
                         animation=BURN_GIF_URL,
                         caption=msg,
                         parse_mode=ParseMode.MARKDOWN_V2,
-                        message_thread_id=TELEGRAM_TOPIC_ID,
+            
                         disable_web_page_preview=False
                     )
                     print(f"Nachricht gesendet für Transaction {burn_id}")
@@ -120,9 +120,9 @@ async def webhook():
     if text == "/status":
         global burn_count
         status_msg = (
-            f"✅ *Bot läuft\\!*\\n"
-            f"Gesendete Burn Alerts: *{burn_count}*"
-        )
+    f"✅ *Bot läuft\\!*\\n"
+    f"Gesendete Burn Alerts: *{burn_count}*\\n"
+    f"Thread ID: `{message.message_thread_id}`"
         status_msg = escape_markdown(status_msg, version=2)
 
         try:
