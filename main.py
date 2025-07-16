@@ -108,7 +108,6 @@ async def burn_alert_loop():
 @app.route("/")
 async def home():
     return "Burn Alert Bot is running"
-
 @app.route("/webhook", methods=["POST"])
 async def webhook():
     data = await request.get_json()
@@ -119,8 +118,8 @@ async def webhook():
     message = update.message or update.channel_post
 
     if not message or not message.text:
-        print("⚠️ Keine gültige Nachricht empfangen.")
-        return "No message", 400
+        # Keine Textnachricht, einfach OK zurückgeben, kein Fehler
+        return "OK", 200
 
     chat_id = message.chat.id
     text = message.text.strip().lower()
@@ -171,7 +170,9 @@ async def webhook():
         except Exception as e:
             print(f"❌ Fehler beim Senden des Testburns: {e}")
 
+    # Für alle anderen Nachrichten machen wir nichts, nur "OK" zurückgeben
     return "OK", 200
+
 
 @app.before_serving
 async def startup():
