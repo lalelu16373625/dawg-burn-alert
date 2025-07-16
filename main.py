@@ -55,14 +55,15 @@ def format_burn_message(burn, is_burn_event: bool):
     flames = "🔥" * flames_count if flames_count > 0 else ""
 
     header = "🔥 *New Burn Alert!* 🔥" if is_burn_event else "📤 *Transfer to Burn Address* 📤"
+    # tx_hash nicht doppelt escapen, nur einmal für den Link:
     tx_hash_escaped = escape_markdown(tx_hash, version=2)
 
     raw_msg = (
         f"{header}\n\n"
-        f"Token: *DAWGZ*\n"
-        f"Amount: *{amount} DAWGZ*\n"
-        f"Current Supply: *{current_supply} DAWGZ*\n"
-        f"Time: `{timestamp}`\n"
+        f"*Token:* DAWGZ\n"
+        f"*Amount:* {amount} DAWGZ\n"
+        f"*Current Supply:* {current_supply} DAWGZ\n"
+        f"*Time:* `{timestamp}`\n"
         f"{flames}\n\n"
         f"[View Transaction](https://explorer.pepu.io/tx/{tx_hash_escaped})"
     )
@@ -130,7 +131,6 @@ async def webhook():
         message_thread_id == TELEGRAM_TOPIC_ID
     )
 
-    # ✅ Befehle auch in privater DM erlauben
     is_private = message.chat.type == "private"
 
     if text == "/status" and (in_group_thread or is_private):
@@ -151,7 +151,7 @@ async def webhook():
 
     elif text == "/testburn" and (in_group_thread or is_private):
         raw_test_msg = (
-            "*🔥 Test Burn Alert! 🔥*\n\n"
+            "🔥 *Test Burn Alert!* 🔥\n\n"
             "*Token:* DAWGZ\n"
             "*Amount:* 100000 DAWGZ\n"
             "*Current Supply:* 690000000 DAWGZ\n"
@@ -172,7 +172,6 @@ async def webhook():
             print(f"❌ Fehler beim Senden des Testburns: {e}")
 
     return "OK", 200
-
 
 @app.before_serving
 async def startup():
