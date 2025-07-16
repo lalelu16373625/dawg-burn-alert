@@ -119,11 +119,10 @@ async def webhook():
 
     if text == "/status":
         global burn_count
-        status_msg = (
+    status_msg = (
     f"✅ *Bot läuft\\!*\\n"
     f"Gesendete Burn Alerts: *{burn_count}*\\n"
     f"Thread ID: `{message.message_thread_id}`"
-        status_msg = escape_markdown(status_msg, version=2)
 )
         try:
             await bot.send_message(
