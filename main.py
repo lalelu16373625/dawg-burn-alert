@@ -116,22 +116,27 @@ async def webhook():
 
     chat_id = message.chat.id
     text = message.text.lower()
-if text == "/status":
-    global burn_count
-    status_msg = (
-        f"✅ *Bot läuft\\!*\\n"
-        f"Gesendete Burn Alerts: *{burn_count}*\\n"
-        f"Thread ID: `{message.message_thread_id}`"
-    )
 
-    try:
-        await bot.send_message(
-            chat_id=chat_id,
-            text=status_msg,
-            parse_mode=ParseMode.MARKDOWN_V2,
+    if text == "/status":
+        global burn_count  # global hier, weil wir burn_count lesen und ggf. ändern
+
+        status_msg = (
+            f"✅ *Bot läuft\\!*\\n"
+            f"Gesendete Burn Alerts: *{burn_count}*\\n"
+            f"Thread ID: `{message.message_thread_id}`"
         )
-    except Exception as e:
-        print(f"Fehler beim Senden der Statusmeldung: {e}")
+
+        try:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=status_msg,
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+        except Exception as e:
+            print(f"Fehler beim Senden der Statusmeldung: {e}")
+
+        return "OK", 200
+
     return "OK", 200
 
 
