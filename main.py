@@ -7,6 +7,7 @@ from telegram.constants import ParseMode
 from telegram.helpers import escape_markdown
 from quart import Quart, request
 import urllib3
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- Einstellungen ---
@@ -18,7 +19,7 @@ BURN_GIF_URL = "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExeXVsZ3N5NXBkMX
 BURN_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 seen_burn_ids = set()
-burn_count = 0  # Zähler für gesendete Burn-Alerts
+burn_count = 0
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 app = Quart(__name__)
@@ -90,10 +91,10 @@ async def burn_alert_loop():
                 try:
                     await bot.send_animation(
                         chat_id=TELEGRAM_CHAT_ID,
+                        message_thread_id=TELEGRAM_TOPIC_ID,
                         animation=BURN_GIF_URL,
                         caption=msg,
                         parse_mode=ParseMode.MARKDOWN_V2,
-            
                         disable_web_page_preview=False
                     )
                     print(f"Nachricht gesendet für Transaction {burn_id}")
@@ -104,8 +105,6 @@ async def burn_alert_loop():
 @app.route("/")
 async def home():
     return "Burn Alert Bot is running"
-
-# ... dein bisheriger Code bleibt unverändert oben ...
 
 @app.route("/webhook", methods=["POST"])
 async def webhook():
@@ -120,8 +119,6 @@ async def webhook():
     chat_id = message.chat.id
     text = message.text.lower()
 
-    # Prüfe, ob Nachricht in der Gruppe UND im BuyAlert-Thread ist
-    # Optional: private Nachrichten zulassen
     in_buy_thread = (
         chat_id == TELEGRAM_CHAT_ID and
         getattr(message, "message_thread_id", None) == TELEGRAM_TOPIC_ID
@@ -135,13 +132,17 @@ async def webhook():
                 f"Gesendete Burn Alerts: *{burn_count}*\\n"
                 f"Thread ID: `{getattr(message, 'message_thread_id', 'N/A')}`"
             )
+
+            send_kwargs = {
+                "chat_id": chat_id,
+                "text": status_msg,
+                "parse_mode": ParseMode.MARKDOWN_V2,
+            }
+            if in_buy_thread:
+                send_kwargs["message_thread_id"] = TELEGRAM_TOPIC_ID
+
             try:
-                await bot.send_message(
-                    chat_id=chat_id,
-                    message_thread_id=TELEGRAM_TOPIC_ID if chat_id == TELEGRAM_CHAT_ID else None,
-                    text=status_msg,
-                    parse_mode=ParseMode.MARKDOWN_V2,
-                )
+                await bot.send_message(**send_kwargs)
             except Exception as e:
                 print(f"Fehler beim Senden der Statusmeldung: {e}")
         else:
@@ -150,33 +151,10 @@ async def webhook():
 
     return "OK", 200
 
+@app.before_serving
+async def startup():
+    app.add_background_task(burn_alert_loop)
 
-async def burn_alert_loop():
-    global seen_burn_ids, burn_count
-    print("Burn Alert Loop gestartet.")
-    while True:
-        burns = fetch_burns()
-        for burn in burns:
-            # ... deine bisherigen Prüfungen ...
-            burn_id = burn["transaction_hash"]
-            if burn_id in seen_burn_ids:
-                continue
-            # ...
-            if event_type == "token_burning" or to_address == BURN_ADDRESS.lower():
-                seen_burn_ids.add(burn_id)
-                burn_count += 1
-                is_burn_event = (event_type == "token_burning")
-                msg = format_burn_message(burn, is_burn_event)
-                try:
-                    await bot.send_animation(
-                        chat_id=TELEGRAM_CHAT_ID,
-                        message_thread_id=TELEGRAM_TOPIC_ID,  # Hier den Thread angeben
-                        animation=BURN_GIF_URL,
-                        caption=msg,
-                        parse_mode=ParseMode.MARKDOWN_V2,
-                        disable_web_page_preview=False
-                    )
-                    print(f"Nachricht gesendet für Transaction {burn_id}")
-                except Exception as e:
-                    print(f"Fehler beim Senden der Nachricht: {e}")
-        await asyncio.sleep(30)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
