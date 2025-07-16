@@ -108,8 +108,14 @@ async def home():
 @app.route("/webhook", methods=["POST"])
 async def webhook():
     data = await request.get_json()
+
+    # Debug: Log das Update-Objekt mal komplett als JSON, um zu sehen, was ankommt
+    print("Received update:", data)
+
     update = Update.de_json(data, bot)
-    message = update.message
+
+    # Nun unterscheiden, wo die Nachricht steckt:
+    message = update.message or update.channel_post
 
     if not message or not message.text:
         return "No message", 400
@@ -118,14 +124,12 @@ async def webhook():
     text = message.text.lower()
 
     if text == "/status":
-        global burn_count  # global hier, weil wir burn_count lesen und ggf. ändern
-
+        global burn_count
         status_msg = (
             f"✅ *Bot läuft\\!*\\n"
             f"Gesendete Burn Alerts: *{burn_count}*\\n"
-            f"Thread ID: `{message.message_thread_id}`"
+            f"Thread ID: `{getattr(message, 'message_thread_id', 'N/A')}`"
         )
-
         try:
             await bot.send_message(
                 chat_id=chat_id,
@@ -134,10 +138,10 @@ async def webhook():
             )
         except Exception as e:
             print(f"Fehler beim Senden der Statusmeldung: {e}")
-
         return "OK", 200
 
     return "OK", 200
+
 
 
 @app.before_serving
