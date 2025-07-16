@@ -97,7 +97,6 @@ async def burn_alert_loop():
                         animation=BURN_GIF_URL,
                         caption=msg,
                         parse_mode=ParseMode.MARKDOWN_V2,
-                        disable_web_page_preview=False
                     )
                 except Exception as e:
                     print(f"Fehler beim Senden der Nachricht: {e}")
@@ -156,7 +155,6 @@ async def webhook():
                 animation=BURN_GIF_URL,
                 caption=msg,
                 parse_mode=ParseMode.MARKDOWN_V2,
-                disable_web_page_preview=False
             )
         except Exception as e:
             print(f"Fehler beim Senden des Testburns: {e}")
